@@ -37,10 +37,9 @@ public class KafkaConfig {
     CommonErrorHandler errorHandler(PipelineProperties pipeline, KafkaTemplate<String, String> kafka) {
         if (pipeline.naive()) {
             // Retry twice, then log and move on. The record is gone.
-            DefaultErrorHandler handler = new DefaultErrorHandler(
+            return new DefaultErrorHandler(
                     (record, e) -> log.warn("Giving up on record at offset {}: {}", record.offset(), e.getMessage()),
                     new FixedBackOff(0, 2));
-            return handler;
         }
         // Retry a few times; if it still fails, park it in the dead-letter topic.
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(

@@ -7,6 +7,7 @@ import dev.paulguevara.silentfailures.payments.NewPayment;
 import dev.paulguevara.silentfailures.reconciliation.ReconciliationCounts;
 import dev.paulguevara.silentfailures.reconciliation.ReconciliationReport;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -42,7 +43,7 @@ class SafeModeIT extends AbstractPipelineIT {
                 INSERT INTO payments (event_id, payment_id, account_id, amount_cents, created_at)
                 VALUES (?, ?, 'acc-1', 500, ?)
                 """)
-                .params(eventId, UUID.randomUUID(), java.sql.Timestamp.from(Instant.now().minusSeconds(60)))
+                .params(eventId, UUID.randomUUID(), Timestamp.from(Instant.now().minusSeconds(60)))
                 .update();
         ProducerRecord<String, String> garbage = new ProducerRecord<>("payments", "acc-1", "}{ not json");
         garbage.headers().add("event-id", eventId.toString().getBytes(StandardCharsets.UTF_8));
