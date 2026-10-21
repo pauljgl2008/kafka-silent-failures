@@ -1,0 +1,36 @@
+groups:
+  - name: reconciliation
+    rules:
+      - alert: LedgerMissingEvents
+        expr: reconciliation_missing_events > 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} payments never reached the ledger"
+          description: "Consumer lag can be zero while this fires. Messages were lost, not delayed."
+
+      - alert: LedgerDuplicateEntries
+        expr: reconciliation_duplicate_entries > 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} ledger entries were applied more than once"
+
+      - alert: LedgerBalanceDrift
+        expr: reconciliation_balance_drift_cents != 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ledger total is off by {{ $value }} cents"
+
+      - alert: DeadLettersPending
+        expr: reconciliation_dead_letters > 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} payments are waiting in the dead-letter table"
+          description: "They are safe, but someone has to fix and replay them."

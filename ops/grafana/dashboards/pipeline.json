@@ -1,0 +1,118 @@
+{
+  "uid": "silent-failures",
+  "title": "Payments pipeline: lag vs reconciliation",
+  "description": "Consumer lag says the pipeline is healthy. Reconciliation says whether the money arrived.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "tags": ["kafka", "reconciliation"],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Consumer lag (records)",
+      "description": "Max lag of the ledger consumer. Zero means 'nothing is waiting', not 'nothing is lost'.",
+      "gridPos": { "x": 0, "y": 0, "w": 5, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(kafka_consumer_fetch_manager_records_lag_max{client_id=~\"consumer-ledger-[0-9]+\"})",
+          "legendFormat": "lag"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 1000 } ] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "Missing payments",
+      "description": "Payments in the source of truth with no ledger entry and no dead letter.",
+      "gridPos": { "x": 5, "y": 0, "w": 5, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "reconciliation_missing_events", "legendFormat": "missing" } ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "Duplicate ledger entries",
+      "gridPos": { "x": 10, "y": 0, "w": 5, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "reconciliation_duplicate_entries", "legendFormat": "duplicates" } ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "Balance drift (USD)",
+      "description": "Ledger total minus the expected total. Missing and duplicate entries can cancel out here, so it is never checked alone.",
+      "gridPos": { "x": 15, "y": 0, "w": 5, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "reconciliation_balance_drift_cents / 100", "legendFormat": "drift" } ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 0 }, { "color": "red", "value": 0.01 } ] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "Dead letters",
+      "description": "Failed payments that are parked and visible. Not lost, but waiting for a fix and a replay.",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "reconciliation_dead_letters", "legendFormat": "dead letters" } ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 1 } ] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Events published vs ledger entries written (per second)",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(pipeline_events_published_total[30s])", "legendFormat": "published" },
+        { "refId": "B", "expr": "rate(pipeline_ledger_applied_total[30s])", "legendFormat": "ledger writes" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Reconciliation over time",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "reconciliation_missing_events", "legendFormat": "missing" },
+        { "refId": "B", "expr": "reconciliation_duplicate_entries", "legendFormat": "duplicates" },
+        { "refId": "C", "expr": "reconciliation_dead_letters", "legendFormat": "dead letters" },
+        { "refId": "D", "expr": "max(kafka_consumer_fetch_manager_records_lag_max{client_id=~\"consumer-ledger-[0-9]+\"})", "legendFormat": "consumer lag" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    }
+  ]
+}
