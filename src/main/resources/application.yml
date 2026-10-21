@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: kafka-silent-failures
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/payments}
+    username: ${DATABASE_USER:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ledger
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+
+pipeline:
+  mode: ${PIPELINE_MODE:safe}
+  reconciliation-grace: 10s
+  reconciliation-interval: 5s
+  outbox-poll-interval: 200ms
+
+faults:
+  producer-send-failure-rate: ${FAULT_PRODUCER_SEND:0}
+  consumer-crash-after-write-rate: ${FAULT_CONSUMER_CRASH:0}
+  poison-rate: ${FAULT_POISON:0}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      mode: ${pipeline.mode}
