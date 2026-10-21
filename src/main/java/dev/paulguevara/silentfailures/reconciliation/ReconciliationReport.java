@@ -25,6 +25,10 @@ public record ReconciliationReport(ReconciliationCounts counts, boolean healthy,
         if (counts.deadLetters() > 0) {
             findings.add(counts.deadLetters() + " payments are in the dead-letter table");
         }
+        if (counts.unlinkedDeadLetters() > 0) {
+            findings.add(counts.unlinkedDeadLetters()
+                    + " dead letters have no event id and cannot be matched to a payment");
+        }
         return new ReconciliationReport(counts, healthy, List.copyOf(findings));
     }
 }

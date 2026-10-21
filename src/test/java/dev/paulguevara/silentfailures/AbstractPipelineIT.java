@@ -53,7 +53,15 @@ abstract class AbstractPipelineIT {
     }
 
     List<NewPayment> runScenario() {
-        List<NewPayment> payments = Simulator.plan(SEED, EVENTS, ACCOUNTS);
+        return runScenario(SEED);
+    }
+
+    /**
+     * Tests in one class share a Spring context, and each fault fires only once per event id.
+     * A second run with the same seed would not break anything, so other tests use other seeds.
+     */
+    List<NewPayment> runScenario(long seed) {
+        List<NewPayment> payments = Simulator.plan(seed, EVENTS, ACCOUNTS);
         payments.forEach(paymentService::create);
         return payments;
     }

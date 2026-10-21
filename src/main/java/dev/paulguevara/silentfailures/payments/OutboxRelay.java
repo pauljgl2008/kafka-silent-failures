@@ -2,6 +2,8 @@ package dev.paulguevara.silentfailures.payments;
 
 import dev.paulguevara.silentfailures.config.FaultProperties;
 import dev.paulguevara.silentfailures.faults.FaultInjector;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -31,13 +33,18 @@ public class OutboxRelay {
     private final FaultInjector faultInjector;
     private final FaultProperties faults;
 
+    private final Counter sendFailures;
+
     public OutboxRelay(JdbcClient jdbc, TransactionTemplate tx, PaymentService payments,
-                       FaultInjector faultInjector, FaultProperties faults) {
+                       FaultInjector faultInjector, FaultProperties faults, MeterRegistry meters) {
         this.jdbc = jdbc;
         this.tx = tx;
         this.payments = payments;
         this.faultInjector = faultInjector;
         this.faults = faults;
+        this.sendFailures = Counter.builder("outbox.send.failures")
+                .description("Outbox sends that failed and will be retried")
+                .register(meters);
     }
 
     record OutboxRow(long id, UUID eventId, String accountId, String payload) {
@@ -61,7 +68,11 @@ public class OutboxRelay {
                     payments.send(row.eventId().toString(), row.accountId(), row.payload());
                     jdbc.sql("UPDATE outbox SET sent_at = now() WHERE id = ?").param(row.id()).update();
                 } catch (Exception e) {
-                    log.info("Outbox row {} not sent yet, will retry: {}", row.id(), e.getMessage());
+                    // Stop here: sending the next rows would put later events for the same
+                    // account ahead of this one. The whole batch is tried again on the next poll.
+                    sendFailures.increment();
+                    log.warn("Outbox row {} not sent, will retry: {}", row.id(), e.getMessage());
+                    return;
                 }
             }
         });

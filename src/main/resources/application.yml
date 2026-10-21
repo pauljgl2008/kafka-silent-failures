@@ -16,12 +16,24 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
+      properties:
+        # Fail fast when the broker is down instead of blocking for a minute or two.
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 12000
+  task:
+    scheduling:
+      pool:
+        # The outbox relay and the reconciler must not wait for each other.
+        size: 2
 
 pipeline:
   mode: ${PIPELINE_MODE:safe}
   reconciliation-grace: 10s
   reconciliation-interval: 5s
   outbox-poll-interval: 200ms
+  # How long the safe-mode listener retries a failing message before it dead-letters it.
+  retry-give-up-after: 2m
 
 faults:
   producer-send-failure-rate: ${FAULT_PRODUCER_SEND:0}

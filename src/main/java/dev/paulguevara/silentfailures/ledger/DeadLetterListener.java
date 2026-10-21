@@ -1,5 +1,6 @@
 package dev.paulguevara.silentfailures.ledger;
 
+import static dev.paulguevara.silentfailures.config.KafkaConfig.DEAD_LETTER_CONTAINER_FACTORY;
 import static dev.paulguevara.silentfailures.config.KafkaConfig.DEAD_LETTER_TOPIC;
 import static dev.paulguevara.silentfailures.config.KafkaConfig.EVENT_ID_HEADER;
 
@@ -25,10 +26,13 @@ public class DeadLetterListener {
         this.jdbc = jdbc;
     }
 
-    @KafkaListener(topics = DEAD_LETTER_TOPIC, groupId = "ledger-dead-letters")
+    @KafkaListener(topics = DEAD_LETTER_TOPIC, groupId = "ledger-dead-letters",
+            containerFactory = DEAD_LETTER_CONTAINER_FACTORY)
     public void onDeadLetter(ConsumerRecord<String, String> record) {
+        // A record with no value (a tombstone) is still a dead letter, not a reason to fail.
+        String payload = record.value() == null ? "" : record.value();
         jdbc.sql("INSERT INTO dead_letters (event_id, payload, error) VALUES (?, ?, ?)")
-                .params(eventId(record), record.value(), header(record, KafkaHeaders.DLT_EXCEPTION_MESSAGE))
+                .params(eventId(record), payload, header(record, KafkaHeaders.DLT_EXCEPTION_MESSAGE))
                 .update();
     }
 

@@ -8,7 +8,8 @@ public record PipelineProperties(
         Mode mode,
         Duration reconciliationGrace,
         Duration reconciliationInterval,
-        Duration outboxPollInterval) {
+        Duration outboxPollInterval,
+        Duration retryGiveUpAfter) {
 
     public enum Mode {
         /** The common first version: dual write, no idempotency, errors logged and skipped. */

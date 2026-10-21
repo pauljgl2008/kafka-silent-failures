@@ -47,6 +47,8 @@ So the `Reconciler` compares the **source of truth** (the `payments` table) with
 
 It only checks payments older than a grace period (10 s), so events that are still in flight are not reported as missing. The numbers go to Prometheus as gauges, and `ops/prometheus/alerts.yml` turns them into alerts.
 
+**Who watches the reconciler?** The detector can fail quietly too. If its query breaks, the gauges keep the last good numbers, and the dashboard looks fine. So it also publishes `reconciliation_last_success_age_seconds` and `reconciliation_failures`, and the `ReconcilerStale` alert fires when the numbers are more than 60 s old.
+
 **Why not just check the balance?** Look at the naive result. The drift is **positive** (+$3,466.49): the ledger has *more* money than expected. If you only checked the total, you would think nothing was lost. But 46 payments were lost. The duplicates simply hid them. That is why the reconciler counts missing and duplicate entries one by one.
 
 ## Run it
@@ -68,8 +70,10 @@ You can also send your own payments:
 ```bash
 curl -X POST localhost:8080/payments -H 'Content-Type: application/json' \
      -d '{"accountId":"acc-1","amountCents":1250}'
-curl -X POST 'localhost:8080/simulate?count=1000&accounts=50&seed=42'
+curl -X POST 'localhost:8080/simulate?count=1000&accounts=50&seed=7'
 ```
+
+The same seed always creates the same payment ids, so a seed can be used once per database. The script already uses seed 42; using it again returns `409 Conflict`. The API also rejects payments the ledger would reject later (`amountCents <= 0`, no account) with `400`, so it never creates poison messages itself.
 
 Fault rates are environment variables: `FAULT_PRODUCER_SEND`, `FAULT_CONSUMER_CRASH`, `FAULT_POISON` (percent).
 
@@ -92,6 +96,12 @@ There are also tests for the edge cases:
 **Why not Kafka transactions (exactly-once)?** They make the read-process-write loop atomic *inside Kafka*. Here the write goes to Postgres, and Kafka transactions do not cover it. The outbox and the idempotent consumer cover both sides with plain database transactions.
 
 **The outbox relay can send an event twice.** If the app dies after Kafka confirms the send but before the row is marked as sent, the event goes out again. That is fine, because the consumer is idempotent. Each fix depends on the other one.
+
+**The dead-letter listener never republishes.** If saving a dead letter fails, it waits and tries again. It does not send the record back to the dead-letter topic, because that would loop forever. While it can't save, its consumer lag grows, and that is visible. The first version of this repo had exactly that loop; a test now checks for it.
+
+**Retries wait out short outages.** In safe mode a failing message is retried with growing waits (200 ms up to 5 s) for up to 2 minutes before it goes to the dead-letter topic. A short database restart does not turn valid payments into dead letters. A message that can never be parsed skips the retries.
+
+**The outbox keeps the order.** If one send fails, the relay stops the batch there and tries again on the next poll. Sending the rows after it would put later events for the same account first.
 
 **Why one Spring app for both sides?** To keep the demo to one container. The payments side and the ledger side only share the Kafka topic. They use different tables, and nothing else is shared.
 

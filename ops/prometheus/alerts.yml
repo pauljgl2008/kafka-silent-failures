@@ -26,8 +26,17 @@ groups:
         annotations:
           summary: "Ledger total is off by {{ $value }} cents"
 
+      - alert: ReconcilerStale
+        expr: reconciliation_last_success_age_seconds > 60 or absent(reconciliation_last_success_age_seconds)
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "The reconciler has not run for {{ $value }} seconds"
+          description: "The other reconciliation numbers are old. A detector that stops is one more silent failure."
+
       - alert: DeadLettersPending
-        expr: reconciliation_dead_letters > 0
+        expr: reconciliation_dead_letters + reconciliation_unlinked_dead_letters > 0
         for: 30s
         labels:
           severity: warning

@@ -8,7 +8,7 @@ class ReconciliationReportTest {
 
     @Test
     void allZeroIsHealthyWithNoFindings() {
-        ReconciliationReport report = ReconciliationReport.of(new ReconciliationCounts(100, 0, 0, 0, 0));
+        ReconciliationReport report = ReconciliationReport.of(new ReconciliationCounts(100, 0, 0, 0, 0, 0));
         assertThat(report.healthy()).isTrue();
         assertThat(report.findings()).isEmpty();
     }
@@ -16,7 +16,7 @@ class ReconciliationReportTest {
     @Test
     void missingAndDuplicatesAreUnhealthyEvenWhenTheBalanceMatches() {
         // 3 lost payments and 3 applied twice can cancel out in the totals.
-        ReconciliationReport report = ReconciliationReport.of(new ReconciliationCounts(100, 3, 3, 0, 0));
+        ReconciliationReport report = ReconciliationReport.of(new ReconciliationCounts(100, 3, 3, 0, 0, 0));
         assertThat(report.healthy()).isFalse();
         assertThat(report.findings())
                 .containsExactly(
@@ -26,15 +26,21 @@ class ReconciliationReportTest {
 
     @Test
     void balanceDriftAloneIsUnhealthy() {
-        ReconciliationReport report = ReconciliationReport.of(new ReconciliationCounts(100, 0, 0, 0, -1250));
+        ReconciliationReport report = ReconciliationReport.of(new ReconciliationCounts(100, 0, 0, 0, -1250, 0));
         assertThat(report.healthy()).isFalse();
         assertThat(report.findings()).containsExactly("ledger total is off by -1250 cents");
     }
 
     @Test
     void deadLettersAreReportedButStillHealthy() {
-        ReconciliationReport report = ReconciliationReport.of(new ReconciliationCounts(100, 0, 0, 2, 0));
+        ReconciliationReport report = ReconciliationReport.of(new ReconciliationCounts(100, 0, 0, 2, 0, 0));
         assertThat(report.healthy()).isTrue();
         assertThat(report.findings()).containsExactly("2 payments are in the dead-letter table");
+    }
+
+    @Test
+    void deadLettersWithoutEventIdAreReported() {
+        ReconciliationReport report = ReconciliationReport.of(new ReconciliationCounts(100, 0, 0, 0, 0, 1));
+        assertThat(report.findings()).containsExactly("1 dead letters have no event id and cannot be matched to a payment");
     }
 }

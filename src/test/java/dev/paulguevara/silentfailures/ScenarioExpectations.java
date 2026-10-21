@@ -38,13 +38,13 @@ final class ScenarioExpectations {
                 drift += p.amountCents();
             }
         }
-        return new ReconciliationCounts(payments.size(), missing, duplicates, 0, drift);
+        return new ReconciliationCounts(payments.size(), missing, duplicates, 0, drift, 0);
     }
 
     static ReconciliationCounts safe(List<NewPayment> payments, FaultProperties faults) {
         long deadLetters = payments.stream()
                 .filter(p -> selected(POISON, p.eventId(), faults.poisonRate()))
                 .count();
-        return new ReconciliationCounts(payments.size(), 0, 0, deadLetters, 0);
+        return new ReconciliationCounts(payments.size(), 0, 0, deadLetters, 0, 0);
     }
 }

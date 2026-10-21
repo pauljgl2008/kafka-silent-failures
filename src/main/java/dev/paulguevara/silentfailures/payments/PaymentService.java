@@ -10,7 +10,10 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +27,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class PaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
+    private static final Duration SEND_TIMEOUT = Duration.ofSeconds(15);
 
     private final JdbcClient jdbc;
     private final TransactionTemplate tx;
@@ -85,11 +89,21 @@ public class PaymentService {
         });
     }
 
-    /** Sends one record and waits for the broker to confirm it. Used by both modes. */
+    public boolean exists(UUID eventId) {
+        return jdbc.sql("SELECT count(*) FROM payments WHERE event_id = ?")
+                .param(eventId)
+                .query(Long.class)
+                .single() > 0;
+    }
+
+    /**
+     * Sends one record and waits for the broker to confirm it, but not forever: a broker that is
+     * down must not block the caller (or the outbox relay) for minutes. Used by both modes.
+     */
     void send(String eventId, String accountId, String payload) throws Exception {
         ProducerRecord<String, String> record = new ProducerRecord<>(TOPIC, accountId, payload);
         record.headers().add(EVENT_ID_HEADER, eventId.getBytes(StandardCharsets.UTF_8));
-        kafka.send(record).get();
+        kafka.send(record).get(SEND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         published.increment();
     }
 
