@@ -17,6 +17,8 @@ public class FaultInjector {
     public static final String CONSUMER_CRASH = "consumer-crash";
     public static final String POISON = "poison";
 
+    private static final int PERCENT_SCALE = 100;
+
     private final Set<String> alreadyFailed = ConcurrentHashMap.newKeySet();
 
     public static boolean selected(String fault, UUID eventId, int ratePercent) {
@@ -25,7 +27,7 @@ public class FaultInjector {
         }
         // MD5 spreads sequential ids well; this is not about security.
         UUID hash = UUID.nameUUIDFromBytes((fault + ":" + eventId).getBytes(StandardCharsets.UTF_8));
-        return Math.floorMod(hash.getLeastSignificantBits(), 100) < ratePercent;
+        return Math.floorMod(hash.getLeastSignificantBits(), PERCENT_SCALE) < ratePercent;
     }
 
     /** True the first time a selected event asks, false after that. */

@@ -30,17 +30,25 @@ public class KafkaConfig {
     private static final Duration RETRY_FIRST_WAIT = Duration.ofMillis(200);
     private static final Duration RETRY_MAX_WAIT = Duration.ofSeconds(5);
     private static final Duration DEAD_LETTER_RETRY_WAIT = Duration.ofSeconds(1);
+    private static final double RETRY_WAIT_MULTIPLIER = 2.0;
+    // Naive mode: no wait between tries, and only two retries before the record is dropped.
+    private static final long NAIVE_RETRY_WAIT_MS = 0;
+    private static final long NAIVE_MAX_RETRIES = 2;
+    private static final int TOPIC_PARTITIONS = 3;
+    private static final int TOPIC_REPLICAS = 1;
+    // Lets Kafka pick the partition for the dead-letter record.
+    private static final int ANY_PARTITION = -1;
 
     private static final Logger log = LoggerFactory.getLogger(KafkaConfig.class);
 
     @Bean
     NewTopic paymentsTopic() {
-        return TopicBuilder.name(TOPIC).partitions(3).replicas(1).build();
+        return TopicBuilder.name(TOPIC).partitions(TOPIC_PARTITIONS).replicas(TOPIC_REPLICAS).build();
     }
 
     @Bean
     NewTopic deadLetterTopic() {
-        return TopicBuilder.name(DEAD_LETTER_TOPIC).partitions(3).replicas(1).build();
+        return TopicBuilder.name(DEAD_LETTER_TOPIC).partitions(TOPIC_PARTITIONS).replicas(TOPIC_REPLICAS).build();
     }
 
     /** Error handler for the payments listener. Spring Boot puts it on the default container factory. */
@@ -50,12 +58,12 @@ public class KafkaConfig {
             // Retry twice, then log and move on. The record is gone.
             return new DefaultErrorHandler(
                     (record, e) -> log.warn("Giving up on record at offset {}: {}", record.offset(), e.getMessage()),
-                    new FixedBackOff(0, 2));
+                    new FixedBackOff(NAIVE_RETRY_WAIT_MS, NAIVE_MAX_RETRIES));
         }
         // Retry with growing waits; if it still fails, park it in the dead-letter topic.
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
-                kafka, (record, e) -> new TopicPartition(DEAD_LETTER_TOPIC, -1));
-        ExponentialBackOff backOff = new ExponentialBackOff(RETRY_FIRST_WAIT.toMillis(), 2.0);
+                kafka, (record, e) -> new TopicPartition(DEAD_LETTER_TOPIC, ANY_PARTITION));
+        ExponentialBackOff backOff = new ExponentialBackOff(RETRY_FIRST_WAIT.toMillis(), RETRY_WAIT_MULTIPLIER);
         backOff.setMaxInterval(RETRY_MAX_WAIT.toMillis());
         backOff.setMaxElapsedTime(pipeline.retryGiveUpAfter().toMillis());
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, backOff);
