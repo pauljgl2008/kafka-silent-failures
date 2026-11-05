@@ -23,6 +23,9 @@ public class LedgerListener {
 
     private static final Logger log = LoggerFactory.getLogger(LedgerListener.class);
 
+    // INSERT ... ON CONFLICT DO NOTHING returns 1 for a new row and 0 for a duplicate.
+    private static final int ROWS_INSERTED = 1;
+
     private final JdbcClient jdbc;
     private final TransactionTemplate tx;
     private final PaymentEventCodec codec;
@@ -81,7 +84,7 @@ public class LedgerListener {
             int firstTime = jdbc.sql("INSERT INTO processed_events (event_id) VALUES (?) ON CONFLICT DO NOTHING")
                     .param(event.eventId())
                     .update();
-            if (firstTime == 1) {
+            if (firstTime == ROWS_INSERTED) {
                 insertEntry(event);
             } else {
                 log.debug("Event {} already applied, skipping", event.eventId());

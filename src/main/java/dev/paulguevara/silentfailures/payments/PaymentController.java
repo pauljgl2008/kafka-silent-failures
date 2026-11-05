@@ -14,6 +14,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class PaymentController {
 
     private static final int MAX_SIMULATED_PAYMENTS = 100_000;
+    private static final int MIN_SIMULATED_PAYMENTS = 1;
+    private static final int MIN_ACCOUNTS = 1;
+    // Annotation values must be string constants.
+    private static final String DEFAULT_COUNT = "1000";
+    private static final String DEFAULT_ACCOUNTS = "50";
+    private static final String DEFAULT_SEED = "42";
 
     private final PaymentService payments;
 
@@ -41,14 +47,14 @@ public class PaymentController {
     }
 
     @PostMapping("/simulate")
-    public Map<String, Object> simulate(@RequestParam(defaultValue = "1000") int count,
-                                        @RequestParam(defaultValue = "50") int accounts,
-                                        @RequestParam(defaultValue = "42") long seed) {
-        if (count < 1 || count > MAX_SIMULATED_PAYMENTS) {
-            throw badRequest("count must be between 1 and " + MAX_SIMULATED_PAYMENTS);
+    public Map<String, Object> simulate(@RequestParam(defaultValue = DEFAULT_COUNT) int count,
+                                        @RequestParam(defaultValue = DEFAULT_ACCOUNTS) int accounts,
+                                        @RequestParam(defaultValue = DEFAULT_SEED) long seed) {
+        if (count < MIN_SIMULATED_PAYMENTS || count > MAX_SIMULATED_PAYMENTS) {
+            throw badRequest("count must be between " + MIN_SIMULATED_PAYMENTS + " and " + MAX_SIMULATED_PAYMENTS);
         }
-        if (accounts < 1) {
-            throw badRequest("accounts must be at least 1");
+        if (accounts < MIN_ACCOUNTS) {
+            throw badRequest("accounts must be at least " + MIN_ACCOUNTS);
         }
         List<NewPayment> plan = Simulator.plan(seed, count, accounts);
         // The same seed gives the same ids. Check before writing, so a batch is never half done.
